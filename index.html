@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Socket.io Chat</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&family=Open+Sans:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: #f1f1f1;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .chat-container {
+            display: flex;
+            flex-direction: row;
+            width: 80%;
+            height: 80vh;
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+        }
+        .user-list {
+            width: 250px;
+            background: #fff;
+            box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+        .user-list h2 {
+            margin-bottom: 20px;
+            text-align: center;
+            font-size: 1.5rem;
+        }
+        .user {
+            display: flex;
+            align-items: center;
+            background: #f5f5f5;
+            margin: 10px 0;
+            padding: 12px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        .user:hover {
+            background: #e0e0e0;
+        }
+        .user img {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+        .chat-box {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            background: #e9e9e9;
+            padding: 20px;
+        }
+        .chat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px;
+            border-radius: 10px;
+        }
+        .chat-header .close-btn {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+        .chat-messages {
+            overflow-y: auto;
+            flex-grow: 1;
+            margin-bottom: 20px;
+            background: #fff;
+            border-radius: 10px;
+            padding: 15px;
+            box-shadow: inset 0 0 5px rgba(0,0,0,0.1);
+            max-height: 400px;
+        }
+        .message {
+            margin-bottom: 15px;
+            padding: 10px;
+            border-radius: 5px;
+            background-color: #f5f5f5;
+            max-width: 70%;
+            word-wrap: break-word;
+            display: flex;
+            align-items: center;
+        }
+        .message.sent {
+            background-color: #4CAF50;
+            color: white;
+            align-self: flex-end;
+            margin-left: auto;
+        }
+        .message.received {
+            background-color: #e1e1e1;
+            color: #333;
+        }
+        .chat-footer {
+            display: flex;
+            align-items: center;
+        }
+        .chat-footer input {
+            width: 80%;
+            padding: 10px;
+            margin-right: 10px;
+            border-radius: 20px;
+            border: 1px solid #ddd;
+            font-size: 1rem;
+        }
+        .chat-footer button {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+        }
+        .chat-footer button:hover {
+            background-color: #45a049;
+        }
+        .username-form {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .username-form input {
+            padding: 10px;
+            font-size: 1rem;
+            width: 250px;
+            border-radius: 20px;
+            border: 1px solid #ddd;
+            margin-bottom: 20px;
+        }
+        .username-form button {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Formulario de usuario -->
+    <div class="username-form" id="usernameForm">
+        <input type="text" id="usernameInput" placeholder="Enter your name" required />
+        <button id="setUsernameButton">Start Chat</button>
+    </div>
+
+    <!-- Contenedor del chat -->
+    <div class="chat-container" style="display: none;" id="chatContainer">
+        <!-- Lista de usuarios -->
+        <div class="user-list" id="userList">
+            <h2>Users</h2>
+        </div>
+
+        <!-- Ventana de chat -->
+        <div class="chat-box" id="chatBox" style="display: none;">
+            <div class="chat-header">
+                <span id="chatWith"></span>
+                <button id="closeChatButton" class="close-btn">×</button>
+            </div>
+            <div class="chat-messages" id="chatMessages"></div>
+            <div class="chat-footer">
+                <input type="text" id="messageInput" placeholder="Type a message" />
+                <button id="sendMessageButton">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+    <script>
+        const socket = io();
+        const usernameForm = document.getElementById('usernameForm');
+        const usernameInput = document.getElementById('usernameInput');
+        const setUsernameButton = document.getElementById('setUsernameButton');
+        const chatContainer = document.getElementById('chatContainer');
+        const userList = document.getElementById('userList');
+        const chatBox = document.getElementById('chatBox');
+        const chatWith = document.getElementById('chatWith');
+        const chatMessages = document.getElementById('chatMessages');
+        const messageInput = document.getElementById('messageInput');
+        const sendMessageButton = document.getElementById('sendMessageButton');
+        const closeChatButton = document.getElementById('closeChatButton');
+    
+        let currentChatUser = null;
+        let username = '';
+    
+        // Enviar nombre de usuario al servidor
+        setUsernameButton.addEventListener('click', () => {
+            username = usernameInput.value.trim();
+            if (username) {
+                socket.emit('set username', username); // Emitir evento con nombre de usuario
+                usernameForm.style.display = 'none';
+                chatContainer.style.display = 'flex';
+            }
+        });
+    
+        // Recibir y actualizar la lista de usuarios conectados
+        socket.on('update users', (users) => {
+            userList.innerHTML = '<h2>Users</h2>';
+            users.forEach(user => {
+                if (user !== username) {
+                    const userElement = document.createElement('div');
+                    userElement.classList.add('user');
+                    
+                    // Obtener una imagen aleatoria de la API de avatares
+                    const avatarImage = document.createElement('img');
+                    avatarImage.src = `https://i.pravatar.cc/150?u=${user}`;
+                    avatarImage.alt = user;
+    
+                    userElement.appendChild(avatarImage);
+                    userElement.appendChild(document.createTextNode(user));
+    
+                    userElement.addEventListener('click', () => openChat(user));
+                    userList.appendChild(userElement);
+                }
+            });
+        });
+    
+        // Abrir el chat con otro usuario
+        function openChat(user) {
+            currentChatUser = user;
+            chatWith.textContent = `Chat with ${user}`;
+            chatMessages.innerHTML = ''; // Limpiar mensajes previos
+            socket.emit('request messages', user); // Solicitar mensajes previos
+            chatBox.style.display = 'flex';
+        }
+    
+        // Recibir mensajes del chat
+        socket.on('chat message', (msg, sender, recipient) => {
+            if (recipient === username || sender === username) {
+                // No mostrar el mensaje si ya está visible
+                const existingMessages = Array.from(chatMessages.children);
+                const isMessageExists = existingMessages.some(element => element.textContent === msg);
+                if (!isMessageExists) {
+                    const messageElement = document.createElement('div');
+                    messageElement.classList.add('message', sender === username ? 'sent' : 'received');
+                    messageElement.innerHTML = `${msg}`;
+                    chatMessages.appendChild(messageElement);
+                    // Desplazar al último mensaje
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                }
+            }
+        });
+    
+        // Enviar mensaje
+        sendMessageButton.addEventListener('click', () => {
+            const message = messageInput.value.trim();
+            if (message && currentChatUser) {
+                // Emitir el mensaje al servidor
+                socket.emit('chat message', message, currentChatUser);
+                messageInput.value = ''; // Limpiar campo
+    
+                // Mostrar el mensaje enviado en el chat de quien lo envió
+                const messageElement = document.createElement('div');
+                messageElement.classList.add('message', 'sent');
+                messageElement.innerHTML = `${message}`;
+                chatMessages.appendChild(messageElement);
+    
+                // Desplazar al último mensaje
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+        });
+    
+        // Enviar mensaje al presionar "Enter"
+        messageInput.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                sendMessageButton.click();
+            }
+        });
+    
+        // Cerrar el chat
+        closeChatButton.addEventListener('click', () => {
+            chatBox.style.display = 'none';
+            currentChatUser = null;
+        });
+    
+        // Recibir mensajes previos de un usuario
+        socket.on('messages loaded', (messages) => {
+            chatMessages.innerHTML = ''; // Limpiar mensajes previos
+            messages.forEach(msg => {
+                const messageElement = document.createElement('div');
+                messageElement.classList.add('message', msg.sender === username ? 'sent' : 'received');
+                messageElement.innerHTML = `${msg.message}`;
+                chatMessages.appendChild(messageElement);
+            });
+    
+            // Desplazar al último mensaje
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        });
+    </script>
+    
+    
+</body>
+</html>
